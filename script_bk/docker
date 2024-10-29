@@ -1,0 +1,60 @@
+#! /usr/bin/env bash
+# set -e
+
+# DOCKER_SERVER="10.98.128.8:5000"
+DOCKER_IAMGE="ros"
+DOCKER_IAMGE_TAG="galactic"
+TOP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+JOYSON_WROKSPACE="/workspace"
+CONTAINER_NAME="robotaxi_mw"
+
+
+function docker_pull_if_needed() {
+    # if [[ "$(docker images  --digests ${DOCKER_IAMGE} |  grep ${DOCKER_IAMGE_TAG} | grep ${DOCKER_IAMGE_DIGEST} )" != "" ]]  ; then
+    #     info "Image ${DOCKER_IAMGE} found locally, will be used."
+    #     return
+    # fi
+
+    echo "pull image ..."
+    if ! docker pull "${DOCKER_IAMGE}:${DOCKER_IAMGE_TAG}"; then
+        error "Failed to update docker image: ${DOCKER_IAMGE}:${DOCKER_IAMGE_TAG}"
+    fi
+}
+
+
+
+
+function docker_run() {
+    local display="${DISPLAY:-:0}"
+
+    # restart docker
+    docker container stop  ${CONTAINER_NAME}  >> /dev/null
+    docker container rm  ${CONTAINER_NAME} >> /dev/null
+
+    docker run  \
+        -it --privileged=true --network=host \
+        -w ${JOYSON_WROKSPACE} \
+        -v ${TOP_DIR}:${JOYSON_WROKSPACE} \
+        --hostname "robotaxi-dev-docker" \
+        --shm-size="4g" \
+        --name ${CONTAINER_NAME} \
+        -e DISPLAY="${display}" \
+        ${DOCKER_IAMGE}:${DOCKER_IAMGE_TAG} \
+        bash    
+}
+
+
+
+function main() {
+
+    xhost +local:root 1>/dev/null 2>&1
+
+    # docker_pull_if_needed
+
+    docker_run
+
+    xhost -local:root 1>/dev/null 2>&1
+}
+
+main "$@"
+

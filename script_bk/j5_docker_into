@@ -1,0 +1,17 @@
+#! /usr/bin/env bash
+set -e
+
+CONTAINER_NAME="joyson-Journey5"
+
+function docker_into() {
+    docker exec  -it  ${CONTAINER_NAME}  bash
+}
+
+
+function main() {
+    docker_into
+}
+
+
+main "$@"
+

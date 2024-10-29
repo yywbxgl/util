@@ -1,0 +1,84 @@
+#! /usr/bin/env bash
+# set -e
+
+DOCKER_SERVER="10.98.128.8:5000"
+DOCKER_IAMGE="${DOCKER_SERVER}/joyson"
+DOCKER_IAMGE_TAG="Journey5-dev"
+# TOP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+TOP_DIR="$(pwd -P)"
+JOYSON_WROKSPACE="/docker_data"
+CONTAINER_NAME="joyson-Journey5"
+
+
+function docker_pull_if_needed() {
+    # if [[ "$(docker images  --digests ${DOCKER_IAMGE} |  grep ${DOCKER_IAMGE_TAG} | grep ${DOCKER_IAMGE_DIGEST} )" != "" ]]  ; then
+    #     info "Image ${DOCKER_IAMGE} found locally, will be used."
+    #     return
+    # fi
+
+    echo "pull image ..."
+    if ! docker pull "${DOCKER_IAMGE}:${DOCKER_IAMGE_TAG}"; then
+        error "Failed to update docker image: ${DOCKER_IAMGE}:${DOCKER_IAMGE_TAG}"
+    fi
+}
+
+function set_private_docker_server() {
+    if [  -f "/etc/docker/daemon.json" ]; then
+        if [ $(echo /etc/docker/daemon.json | grep "${DOCKER_SERVER}") != ""]; then
+            info "docker config ok."
+            return
+        else
+            info "create dcoker config."
+        fi
+    fi
+
+    echo "{
+    \"insecure-registries\":[\"${DOCKER_SERVER}\"]
+}" > /etc/docker/daemon.json
+    systemctl  restart docker
+}
+
+
+function docker_run() {
+    local display="${DISPLAY:-:0}"
+
+    # restart docker
+    docker container stop  ${CONTAINER_NAME}  >> /dev/null
+    docker container rm  ${CONTAINER_NAME} >> /dev/null
+
+    docker run  \
+        -it --privileged=true --network=host \
+        -w ${JOYSON_WROKSPACE} \
+        -v ${TOP_DIR}:${JOYSON_WROKSPACE} \
+        --hostname "Journey5-dev-docker" \
+        --shm-size="4g" \
+        --name ${CONTAINER_NAME} \
+        -e DISPLAY="${display}" \
+        ${DOCKER_IAMGE}:${DOCKER_IAMGE_TAG} \
+        bash    
+}
+
+function postrun_start_user() {
+    local container="$1"
+    if [ "${USER}" != "root" ]; then
+        docker exec -u root "${container}" \
+            bash -c '/user/local/bin/docker_start_user.sh'
+    fi
+}
+
+
+function main() {
+
+    xhost +local:root 1>/dev/null 2>&1
+
+    set_private_docker_server
+
+    docker_pull_if_needed
+
+    docker_run
+
+    xhost -local:root 1>/dev/null 2>&1
+}
+
+main "$@"
+
